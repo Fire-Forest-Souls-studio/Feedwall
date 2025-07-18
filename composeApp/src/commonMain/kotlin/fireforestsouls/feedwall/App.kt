@@ -3,6 +3,7 @@ package fireforestsouls.feedwall
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -10,7 +11,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -25,6 +28,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
+import androidx.compose.ui.graphics.painter.Painter
+import coil3.compose.AsyncImage
+
 
 @Serializable
 data class TelegramResponse(
@@ -37,15 +43,39 @@ data class ChatInfo(
     val id: Long,
     val title: String,
     val username: String? = null,
-    val type: String? = null
+    val type: String? = null,
+    val photo: ChatPhoto? = null
+)
+
+@Serializable
+data class ChatPhoto(
+    val small_file_id: String,
+    val small_file_unique_id: String,
+    val big_file_id: String,
+    val big_file_unique_id: String
+)
+
+@Serializable
+data class FileResponse(
+    val ok: Boolean,
+    val result: FileInfo? = null
+)
+
+@Serializable
+data class FileInfo(
+    val file_id: String,
+    val file_unique_id: String,
+    val file_size: Long? = null,
+    val file_path: String? = null
 )
 
 data class Channel(
     val username: String,
-    val title: String
+    val title: String,
+    val avatarUrl: String? = null
 )
 
-suspend fun getChannelInfo(botToken: String, channelUsername: String): String? {
+suspend fun getChannelInfo(botToken: String, channelUsername: String): Channel? {
     return try {
         val client = HttpClient {
             install(ContentNegotiation) {
@@ -65,15 +95,50 @@ suspend fun getChannelInfo(botToken: String, channelUsername: String): String? {
 
         val telegramResponse = json.decodeFromString<TelegramResponse>(responseText)
 
-        client.close()
-
         if (telegramResponse.ok && telegramResponse.result != null) {
-            telegramResponse.result.title
+            val chatInfo = telegramResponse.result
+            var avatarUrl: String? = null
+
+            // Получаем URL аватарки если она есть
+            if (chatInfo.photo != null) {
+                avatarUrl = getFileUrl(client, botToken, chatInfo.photo.big_file_id)
+            }
+
+            client.close()
+
+            Channel(
+                username = cleanUsername,
+                title = chatInfo.title,
+                avatarUrl = avatarUrl
+            )
         } else {
+            client.close()
             null
         }
     } catch (e: Exception) {
         println("Error fetching channel info: ${e.message}")
+        null
+    }
+}
+
+suspend fun getFileUrl(client: HttpClient, botToken: String, fileId: String): String? {
+    return try {
+        val response = client.get("https://api.telegram.org/bot$botToken/getFile?file_id=$fileId")
+        val responseText = response.bodyAsText()
+
+        val json = Json {
+            ignoreUnknownKeys = true
+        }
+
+        val fileResponse = json.decodeFromString<FileResponse>(responseText)
+
+        if (fileResponse.ok && fileResponse.result?.file_path != null) {
+            "https://api.telegram.org/file/bot$botToken/${fileResponse.result.file_path}"
+        } else {
+            null
+        }
+    } catch (e: Exception) {
+        println("Error fetching file URL: ${e.message}")
         null
     }
 }
@@ -97,12 +162,12 @@ fun App() {
 
         suspend fun addChannel(username: String) {
             isLoading = true
-            val title = getChannelInfo(botToken, username)
+            val channelInfo = getChannelInfo(botToken, username)
 
-            if (title != null) {
-                channels.add(Channel(username, title))
+            if (channelInfo != null) {
+                channels.add(channelInfo)
             } else {
-                channels.add(Channel("username", "Не найдено"))
+                channels.add(Channel(username, "Не найдено"))
             }
             isLoading = false
         }
@@ -218,7 +283,7 @@ fun App() {
                     Box(
                         modifier = Modifier
                             .height(84.dp)
-                            .width(234.dp)
+                            .width(280.dp)
                             .padding(vertical = 4.dp)
                             .background(
                                 color = Color(0xFF141414),
@@ -230,7 +295,6 @@ fun App() {
                             modifier = Modifier.padding(start = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-
                             Text(
                                 text = "×",
                                 fontSize = 20.sp,
@@ -242,18 +306,53 @@ fun App() {
                                     .padding(end = 12.dp)
                             )
 
-                            if (channel.title != channel.username) {
-                                Text(
-                                    text = if (channel.title.length > 25) channel.title.take(25) + "…" else channel.title,
-                                    fontSize = 18.sp,
-                                    color = Color(0xFFD2D2D2)
+                            // Аватарка канала
+                            if (channel.avatarUrl != null) {
+                                AsyncImage(
+                                    model = channel.avatarUrl,
+                                    contentDescription = "Channel avatar",
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
                                 )
                             } else {
-                                Text(
-                                    text = channel.username,
-                                    fontSize = 18.sp,
-                                    color = Color(0xFFD2D2D2)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF292B31)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = channel.title.firstOrNull()?.uppercase() ?: "?",
+                                        fontSize = 20.sp,
+                                        color = Color(0xFFACACAC)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column {
+                                if (channel.title != channel.username) {
+                                    Text(
+                                        text = if (channel.title.length > 20) channel.title.take(20) + "…" else channel.title,
+                                        fontSize = 16.sp,
+                                        color = Color(0xFFD2D2D2)
+                                    )
+                                    Text(
+                                        text = "@${channel.username}",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF888888)
+                                    )
+                                } else {
+                                    Text(
+                                        text = "@${channel.username}",
+                                        fontSize = 16.sp,
+                                        color = Color(0xFFD2D2D2)
+                                    )
+                                }
                             }
                         }
                     }

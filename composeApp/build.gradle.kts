@@ -28,6 +28,9 @@ kotlin {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
             implementation("io.ktor:ktor-client-okhttp:2.3.7")
+            // Coil для Android
+            implementation("io.coil-kt.coil3:coil-compose:3.0.0-alpha06")
+            implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.0-alpha06")
         }
 
         commonMain.dependencies {
@@ -47,6 +50,9 @@ kotlin {
             implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
             implementation("org.slf4j:slf4j-simple:2.0.9")
 
+            // Coil для общих зависимостей
+            implementation("io.coil-kt.coil3:coil-compose:3.0.0-alpha06")
+            implementation("io.coil-kt.coil3:coil-network-ktor:3.0.0-alpha06")
         }
 
         commonTest.dependencies {
@@ -57,6 +63,8 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation("io.ktor:ktor-client-cio:2.3.7")
+            // Coil для Desktop
+            implementation("io.coil-kt.coil3:coil-network-ktor:3.0.0-alpha06")
         }
     }
 }
