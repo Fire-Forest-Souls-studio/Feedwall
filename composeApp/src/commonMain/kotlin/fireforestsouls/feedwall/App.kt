@@ -28,7 +28,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
-import androidx.compose.ui.graphics.painter.Painter
 import coil3.compose.AsyncImage
 
 
@@ -68,7 +67,6 @@ data class FileInfo(
     val file_size: Long? = null,
     val file_path: String? = null
 )
-
 data class Channel(
     val username: String,
     val title: String,
